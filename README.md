@@ -77,21 +77,26 @@ arrives on schedule. Below ~2²⁰ elements both are launch-bound and the gap na
 
 ### Softmax: fused single-block and online variants vs `torch.softmax` (median ms)
 
-| shape | fp16 fused | fp16 online | fp16 eager | fp32 fused | fp32 online | fp32 eager |
-|---|---|---|---|---|---|---|
-| 4096×256 | 0.111 | 0.165 | **0.073** | 0.128 | 0.176 | **0.100** |
-| 4096×1024 | **0.202** | 0.207 | 0.215 | 0.363 | 0.363 | 0.361 |
-| 4096×4096 | **0.731** | 0.737 | 2.859 | **1.407** | 1.912 | 3.044 |
-| 16384×1024 | **0.778** | 0.790 | 0.789 | 1.411 | 1.407 | 1.413 |
-| 1024×16384 | **0.734** | 1.077 | 1.478 | **1.439** | 2.116 | 2.195 |
+| shape | fp16 fused | fp16 online | fp16 eager | fp16 compile | fp32 fused | fp32 online | fp32 eager | fp32 compile |
+|---|---|---|---|---|---|---|---|---|
+| 4096×256 | 0.112 | 0.165 | 0.074 | **0.061** | 0.129 | 0.176 | **0.100** | 0.128 |
+| 4096×1024 | **0.199** | 0.205 | 0.215 | 0.453 | **0.361** | 0.362 | 0.360 | 0.432 |
+| 4096×4096 | **0.729** | 0.736 | 2.861 | 1.400 | **1.412** | 1.912 | 3.059 | 2.994 |
+| 16384×1024 | **0.778** | 0.789 | 0.789 | 1.890 | 1.414 | 1.408 | **1.402** | 1.634 |
+| 1024×16384 | **0.733** | 1.076 | 1.479 | 1.680 | **1.439** | 2.116 | 2.184 | 3.067 |
 
-Honest reading, both directions:
+(`compile` = `torch.compile` steady state, compiled per shape, warm — the M4 baseline.)
 
-- **Narrow rows (256 cols): eager wins.** One program per 256-wide row leaves the GPU
-  under-occupied; `torch.softmax` batches better there. My kernels earn their keep from
-  ~1K cols up.
-- **Wide rows are the win**: 3.9× over eager at 4096×4096 fp16, where torch's fp16 path
-  collapses to ~23 GB/s while the fused kernel holds ~92 GB/s (90% of peak).
+Honest reading, all directions:
+
+- **Narrow rows (256 cols): `torch.compile` wins outright** (fp16 0.061 ms — faster than
+  eager and 1.8× faster than my kernel). [Module E](notes/e-inductor/README.md) *predicted
+  this before it was measured*: reading Inductor's generated kernel showed it batches
+  `XBLOCK` rows per program where mine strands a whole program on 256 columns. The
+  prediction came from the code read; the CSV confirmed it.
+- **Everywhere else the hand kernel leads `torch.compile` by ~2×** (fp16: 0.73 vs 1.40 at
+  4096×4096, 0.78 vs 1.89 at 16384×1024) — and leads eager by up to 3.9× at wide rows,
+  where torch's fp16 path collapses to ~23 GB/s while the fused kernel holds ~92 GB/s.
 - **The online variant matches the single-block kernel** until the row stops fitting in
   cache — its second read pass is nearly free at 4096 cols (L2 hit), and costs real time at
   16384 (fp32: 2.12 ms vs 1.44). Its GB/s column in the CSVs counts 3 passes of actual
@@ -166,7 +171,9 @@ Public notes with one artifact each — see [`notes/README.md`](notes/README.md)
 - [x] **M3** — study notes A–D complete ([A](notes/a-gpu-execution/README.md) ·
   [B](notes/b-triton-model/README.md) · [C](notes/c-llvm/README.md) ·
   [D](notes/d-lowering/README.md))
-- [ ] **M4** — Dynamo/Inductor module, `torch.compile` steady-state baseline, perf plots
+- [x] **M4** — [Dynamo/Inductor module](notes/e-inductor/README.md) with committed
+  explain/graph-break artifacts, `torch.compile` steady-state baseline in the softmax
+  table, perf plots
 
 ## Toolchain notes
 
