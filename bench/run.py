@@ -112,11 +112,17 @@ def rows_softmax(dtype: torch.dtype, sizes: list[tuple[int, int]], cooldown: flo
         rtol, atol = (1e-3, 1e-3) if dtype == torch.float16 else (None, None)
         torch.testing.assert_close(softmax(x).float(), ref, rtol=rtol, atol=atol)
         torch.testing.assert_close(softmax_online(x).float(), ref, rtol=rtol, atol=atol)
+        # Steady-state torch.compile baseline: fresh compile per shape (mirrors
+        # Inductor's own shape specialization), compiled once here so do_bench
+        # times the compiled artifact, never the compiler.
+        compiled = torch.compile(lambda t: torch.softmax(t, dim=-1))
+        torch.testing.assert_close(compiled(x).float(), ref, rtol=rtol, atol=atol)
         numel = n_rows * n_cols
         for impl, fn, passes in (
             ("triton_fused", lambda x=x: softmax(x), 2),  # read + write
             ("triton_online", lambda x=x: softmax_online(x), 3),  # 2 reads + write
             ("eager", lambda x=x: torch.softmax(x, dim=-1), 2),
+            ("torch_compile", lambda x=x, c=compiled: c(x), 2),
         ):
             med, q20, q80 = bench_ms(fn)
             yield {
