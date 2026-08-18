@@ -1,0 +1,44 @@
+[2026-08-18T07:01:55+00:00] PAUSE: stopping timers: nightly-report.timer guss-trader.timer
+[2026-08-18T07:02:00+00:00] PAUSE: stopping llama-server
+[2026-08-18T07:02:01+00:00] dropping page caches
+[2026-08-18T07:02:01+00:00] locking clocks
+NV Power Mode: MAXN_SUPER
+2
+               total        used        free      shared  buff/cache   available
+Mem:           7.4Gi       481Mi       6.8Gi        23Mi       176Mi       6.8Gi
+Swap:          3.7Gi       176Mi       3.5Gi
+[2026-08-18T07:02:01+00:00] RUN: bash -c TRITON_INTERPRET=0 .venv/bin/python -m pytest -q && .venv/bin/python -m bench.run --kernel matmul && ./out/cuda_elementwise | tee bench/results/orin/cuda_elementwise.csv
+.................................................                        [100%]
+49 passed in 21.57s
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/usr/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/home/jeremy/triton-kernel-lab/bench/run.py", line 243, in <module>
+    main()
+  File "/home/jeremy/triton-kernel-lab/bench/run.py", line 224, in main
+    for row in rows:
+  File "/home/jeremy/triton-kernel-lab/bench/run.py", line 145, in rows_matmul
+    torch.testing.assert_close(
+  File "/home/jeremy/triton-kernel-lab/.venv/lib/python3.10/site-packages/torch/testing/_comparison.py", line 1600, in assert_close
+    raise error_metas[0].to_error(msg)
+AssertionError: Tensor-likes are not close!
+
+Mismatched elements: 321 / 65536 (0.5%)
+Greatest absolute difference: 0.042183876037597656 at index (93, 136) (up to 0.01 allowed)
+Greatest relative difference: 7.07077169418335 at index (48, 76) (up to 0.01 allowed)
+matmul      fp16 cublas           256x256x256     0.0200 ms     19.7 GB/s     1.68 TFLOP/s
+matmul      fp16 triton           256x256x256     0.0204 ms     19.3 GB/s     1.65 TFLOP/s
+matmul      fp16 cublas           512x512x512     0.0472 ms     33.3 GB/s     5.68 TFLOP/s
+matmul      fp16 triton           512x512x512     0.0462 ms     34.1 GB/s     5.81 TFLOP/s
+matmul      fp16 cublas        1024x1024x1024     0.2377 ms     26.5 GB/s     9.04 TFLOP/s
+matmul      fp16 triton        1024x1024x1024     0.2548 ms     24.7 GB/s     8.43 TFLOP/s
+matmul      fp16 cublas        2048x2048x2048     2.0368 ms     12.4 GB/s     8.44 TFLOP/s
+matmul      fp16 triton        2048x2048x2048     2.2571 ms     11.2 GB/s     7.61 TFLOP/s
+matmul      fp16 cublas        4096x4096x4096    16.1458 ms      6.2 GB/s     8.51 TFLOP/s
+matmul      fp16 triton        4096x4096x4096    19.8078 ms      5.1 GB/s     6.94 TFLOP/s
+wrote bench/results/orin/matmul_fp16.csv
+[2026-08-18T07:02:46+00:00] RESTORE: starting llama-server (drops caches first, as its unit does at boot)
+[2026-08-18T07:02:47+00:00] RESTORE: resuming timers: nightly-report.timer guss-trader.timer
+[2026-08-18T07:02:48+00:00] session log: bench/results/session-20260818-070154.log
