@@ -1,0 +1,79 @@
+[2026-08-18T05:59:52+00:00] PAUSE: stopping timers: nightly-report.timer guss-trader.timer
+[2026-08-18T05:59:57+00:00] PAUSE: stopping llama-server
+[2026-08-18T05:59:59+00:00] dropping page caches
+[2026-08-18T05:59:59+00:00] locking clocks
+NV Power Mode: MAXN_SUPER
+2
+               total        used        free      shared  buff/cache   available
+Mem:           7.4Gi       472Mi       6.8Gi        15Mi       177Mi       6.8Gi
+Swap:          3.7Gi       167Mi       3.6Gi
+[2026-08-18T06:00:00+00:00] RUN: bash -c .venv/bin/python scripts/jetson_smoke.py && TRITON_INTERPRET=0 .venv/bin/python -m pytest -q && .venv/bin/python -m bench.run --kernel all
+python  : 3.10.12
+torch   : 2.11.0 (cuda 12.6)
+device  : Orin (sm_87)
+triton  : 3.7.1
+OK: triton kernel compiled, ran on GPU, matches torch — ready to benchmark
+......................................                                   [100%]
+38 passed in 6.12s
+elementwise fp16 triton_fused         65536     0.0163 ms     32.1 GB/s
+elementwise fp16 eager                65536     0.0301 ms     17.4 GB/s
+elementwise fp16 triton_fused        262144     0.0360 ms     58.2 GB/s
+elementwise fp16 eager               262144     0.0576 ms     36.4 GB/s
+elementwise fp16 triton_fused       1048576     0.1013 ms     82.8 GB/s
+elementwise fp16 eager              1048576     0.1984 ms     42.3 GB/s
+elementwise fp16 triton_fused       4194304     0.3600 ms     93.2 GB/s
+elementwise fp16 eager              4194304     0.7211 ms     46.5 GB/s
+elementwise fp16 triton_fused      16777216     1.4023 ms     95.7 GB/s
+elementwise fp16 eager             16777216     2.7994 ms     48.0 GB/s
+elementwise fp16 triton_fused      67108864     5.5360 ms     97.0 GB/s
+elementwise fp16 eager             67108864    11.2445 ms     47.8 GB/s
+wrote bench/results/orin/elementwise_fp16.csv
+elementwise fp32 triton_fused         65536     0.0235 ms     44.6 GB/s
+elementwise fp32 eager                65536     0.0405 ms     25.9 GB/s
+elementwise fp32 triton_fused        262144     0.0580 ms     72.4 GB/s
+elementwise fp32 eager               262144     0.1062 ms     39.5 GB/s
+elementwise fp32 triton_fused       1048576     0.1883 ms     89.1 GB/s
+elementwise fp32 eager              1048576     0.3750 ms     44.7 GB/s
+elementwise fp32 triton_fused       4194304     0.7057 ms     95.1 GB/s
+elementwise fp32 eager              4194304     1.4164 ms     47.4 GB/s
+elementwise fp32 triton_fused      16777216     2.7898 ms     96.2 GB/s
+elementwise fp32 eager             16777216     5.5911 ms     48.0 GB/s
+elementwise fp32 triton_fused      67108864    11.0685 ms     97.0 GB/s
+elementwise fp32 eager             67108864    22.2161 ms     48.3 GB/s
+wrote bench/results/orin/elementwise_fp32.csv
+softmax     fp16 triton_fused      4096x256     0.1108 ms     37.9 GB/s
+softmax     fp16 triton_online     4096x256     0.1647 ms     38.2 GB/s
+softmax     fp16 eager             4096x256     0.0729 ms     57.6 GB/s
+softmax     fp16 triton_fused     4096x1024     0.2018 ms     83.2 GB/s
+softmax     fp16 triton_online    4096x1024     0.2069 ms    121.6 GB/s
+softmax     fp16 eager            4096x1024     0.2149 ms     78.1 GB/s
+softmax     fp16 triton_fused     4096x4096     0.7308 ms     91.8 GB/s
+softmax     fp16 triton_online    4096x4096     0.7369 ms    136.6 GB/s
+softmax     fp16 eager            4096x4096     2.8595 ms     23.5 GB/s
+softmax     fp16 triton_fused    16384x1024     0.7782 ms     86.2 GB/s
+softmax     fp16 triton_online   16384x1024     0.7901 ms    127.4 GB/s
+softmax     fp16 eager           16384x1024     0.7894 ms     85.0 GB/s
+softmax     fp16 triton_fused    1024x16384     0.7339 ms     91.4 GB/s
+softmax     fp16 triton_online   1024x16384     1.0771 ms     93.5 GB/s
+softmax     fp16 eager           1024x16384     1.4777 ms     45.4 GB/s
+wrote bench/results/orin/softmax_fp16.csv
+softmax     fp32 triton_fused      4096x256     0.1283 ms     65.4 GB/s
+softmax     fp32 triton_online     4096x256     0.1765 ms     71.3 GB/s
+softmax     fp32 eager             4096x256     0.0997 ms     84.1 GB/s
+softmax     fp32 triton_fused     4096x1024     0.3628 ms     92.5 GB/s
+softmax     fp32 triton_online    4096x1024     0.3625 ms    138.8 GB/s
+softmax     fp32 eager            4096x1024     0.3608 ms     93.0 GB/s
+softmax     fp32 triton_fused     4096x4096     1.4069 ms     95.4 GB/s
+softmax     fp32 triton_online    4096x4096     1.9119 ms    105.3 GB/s
+softmax     fp32 eager            4096x4096     3.0440 ms     44.1 GB/s
+softmax     fp32 triton_fused    16384x1024     1.4109 ms     95.1 GB/s
+softmax     fp32 triton_online   16384x1024     1.4071 ms    143.1 GB/s
+softmax     fp32 eager           16384x1024     1.4125 ms     95.0 GB/s
+softmax     fp32 triton_fused    1024x16384     1.4392 ms     93.3 GB/s
+softmax     fp32 triton_online   1024x16384     2.1157 ms     95.2 GB/s
+softmax     fp32 eager           1024x16384     2.1946 ms     61.2 GB/s
+wrote bench/results/orin/softmax_fp32.csv
+[2026-08-18T06:01:23+00:00] sweep finished
+[2026-08-18T06:01:23+00:00] RESTORE: starting llama-server (drops caches first, as its unit does at boot)
+[2026-08-18T06:01:24+00:00] RESTORE: resuming timers: nightly-report.timer guss-trader.timer
+[2026-08-18T06:01:25+00:00] session log: bench/results/session-20260818-055952.log

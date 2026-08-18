@@ -54,10 +54,50 @@ python -m bench.run --kernel softmax --dtype fp16 --sizes 4096x1024   # targeted
 Interpreter-mode tests are a correctness gate only — sequential numpy execution, no
 performance signal, no bf16.
 
-## Results
+## Results — Jetson Orin Nano (sm_87, MAXN_SUPER, locked clocks)
 
-First committed numbers land with M1 (Jetson bring-up). Every number in these tables will
-trace to a CSV in `bench/results/` carrying the environment that produced it.
+Every number traces to a committed CSV in [`bench/results/orin/`](bench/results/orin/) carrying
+torch 2.11.0 / Triton 3.7.1 / CUDA 12.6 and the power mode in every row; PNGs are rendered from
+those same CSVs by `bench/plot.py`. Device peak is ~102 GB/s.
+
+### Elementwise: fused mul-add-relu vs eager (3 kernels)
+
+| numel | dtype | fused | eager | speedup | fused % of peak |
+|---|---|---|---|---|---|
+| 2²⁰ | fp16 | 82.8 GB/s | 42.3 GB/s | 1.96× | 81% |
+| 2²⁶ | fp16 | 97.0 GB/s | 47.8 GB/s | 2.03× | **95%** |
+| 2²⁶ | fp32 | 97.0 GB/s | 48.3 GB/s | 2.01× | **95%** |
+
+The 2× is not cleverness — it's arithmetic. Eager's three kernels make 8 global-memory trips
+per element; the fused kernel makes 4. The traffic ratio predicts the speedup, and the speedup
+arrives on schedule. Below ~2²⁰ elements both are launch-bound and the gap narrows.
+
+![elementwise fp16](bench/results/orin/elementwise_fp16.png)
+
+### Softmax: fused single-block and online variants vs `torch.softmax` (median ms)
+
+| shape | fp16 fused | fp16 online | fp16 eager | fp32 fused | fp32 online | fp32 eager |
+|---|---|---|---|---|---|---|
+| 4096×256 | 0.111 | 0.165 | **0.073** | 0.128 | 0.176 | **0.100** |
+| 4096×1024 | **0.202** | 0.207 | 0.215 | 0.363 | 0.363 | 0.361 |
+| 4096×4096 | **0.731** | 0.737 | 2.859 | **1.407** | 1.912 | 3.044 |
+| 16384×1024 | **0.778** | 0.790 | 0.789 | 1.411 | 1.407 | 1.413 |
+| 1024×16384 | **0.734** | 1.077 | 1.478 | **1.439** | 2.116 | 2.195 |
+
+Honest reading, both directions:
+
+- **Narrow rows (256 cols): eager wins.** One program per 256-wide row leaves the GPU
+  under-occupied; `torch.softmax` batches better there. My kernels earn their keep from
+  ~1K cols up.
+- **Wide rows are the win**: 3.9× over eager at 4096×4096 fp16, where torch's fp16 path
+  collapses to ~23 GB/s while the fused kernel holds ~92 GB/s (90% of peak).
+- **The online variant matches the single-block kernel** until the row stops fitting in
+  cache — its second read pass is nearly free at 4096 cols (L2 hit), and costs real time at
+  16384 (fp32: 2.12 ms vs 1.44). Its GB/s column in the CSVs counts 3 passes of actual
+  traffic, so it can exceed the fused kernel's number at equal time — read ms for "which is
+  faster," GB/s for "how busy is the memory system."
+
+![softmax fp32](bench/results/orin/softmax_fp32.png)
 
 ## Study track (`notes/`)
 
@@ -73,7 +113,8 @@ Public notes with one artifact each — see [`notes/README.md`](notes/README.md)
 ## Roadmap
 
 - [x] **M0** — scaffold, elementwise + softmax kernels, interpreter-verified tests, bench harness, CI
-- [ ] **M1** — Jetson bring-up, first committed GPU numbers, softmax lowering artifact (notes D seed)
+- [x] **M1** — Jetson bring-up, first committed GPU numbers,
+  [softmax lowering artifact](notes/d-lowering/README.md) (notes D seed)
 - [ ] **M2** — tiled matmul + autotune (% of cuBLAS), raw CUDA C++ elementwise baseline,
   reading Inductor's generated Triton for softmax
 - [ ] **M3** — study notes A–D complete
