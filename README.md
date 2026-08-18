@@ -100,6 +100,50 @@ Honest reading, both directions:
 
 ![softmax fp32](bench/results/orin/softmax_fp32.png)
 
+### Tiled matmul vs cuBLAS (`torch.matmul`)
+
+TF32 is enabled for the fp32 cuBLAS baseline because my kernel's `tl.dot` uses TF32 on
+Ampere — like for like. Correctness is gated per size by measuring **both** implementations
+against an fp64 reference and requiring my worst-case error within 3× cuBLAS's own (a fixed
+tolerance against an IEEE reference is the wrong gate under TF32 — it rejected a correct
+kernel once; see the [bring-up log](notes/bringup-log.md)).
+
+| size | fp16 triton | fp16 cuBLAS | % | fp32 triton | fp32 cuBLAS | % |
+|---|---|---|---|---|---|---|
+| 256³ | 1.65 TF/s | 1.68 TF/s | 98.0% | 1.28 TF/s | 1.19 TF/s | **107.2%** |
+| 512³ | 5.81 | 5.68 | **102.2%** | 3.59 | 3.63 | 98.8% |
+| 1024³ | 8.43 | 9.04 | 93.3% | 4.53 | 4.54 | 99.7% |
+| 2048³ | 7.61 | 8.44 | 90.2% | 3.98 | 4.28 | 93.1% |
+| 4096³ | 6.94 | 8.51 | 81.5% | 3.65 | 4.92 | 74.3% |
+
+Honest reading: parity (or slightly better, from lower launch/heuristic overhead — that's
+what the >100% points are, not superior codegen) through 1024³, then a widening gap as the
+working set swamps the Orin's small L2 — cuBLAS's deeper tiling arsenal (split-K, wider
+config space than my six autotune candidates) earns its keep exactly where blocking gets
+hard. Closing some of that 4096³ gap is the standing exercise; claiming to beat cuBLAS in
+general would be an anti-signal, and these tables show why.
+
+![matmul fp16](bench/results/orin/matmul_fp16.png)
+
+### Triton vs hand-written CUDA C++ (fused elementwise, fp32 GB/s)
+
+[`cuda/elementwise.cu`](cuda/elementwise.cu) is the same fused mul-add-relu written by hand,
+scalar and `float4` variants, self-checking and cudaEvent-timed.
+
+| numel | Triton | CUDA scalar | CUDA float4 |
+|---|---|---|---|
+| 2²⁰ | 89.1 | 89.3 | 93.1 |
+| 2²² | 95.1 | 94.3 | 96.8 |
+| 2²⁶ | **97.0** | 85.9 | **97.7** |
+
+Two lessons in one table. At bandwidth-bound sizes Triton's generated code sits within ~0.7%
+of the hand-vectorized kernel — the 128-bit loads it derived from its block layout (receipts
+in [module D](notes/d-lowering/README.md)) are the same ones written manually in the
+`float4` variant. And the scalar variant collapsing at 2²⁶ (−12%) shows vectorized access
+*is* the whole game at this op's arithmetic intensity. Small-size comparisons across the two
+harnesses aren't apples-to-apples (do_bench measures through the Python wrapper; the C++
+harness times raw kernels with cudaEvents), so the table starts where kernel time dominates.
+
 ## Study track (`notes/`)
 
 Public notes with one artifact each — see [`notes/README.md`](notes/README.md):
@@ -116,8 +160,9 @@ Public notes with one artifact each — see [`notes/README.md`](notes/README.md)
 - [x] **M0** — scaffold, elementwise + softmax kernels, interpreter-verified tests, bench harness, CI
 - [x] **M1** — Jetson bring-up, first committed GPU numbers,
   [softmax lowering artifact](notes/d-lowering/README.md) (notes D seed)
-- [ ] **M2** — tiled matmul + autotune (% of cuBLAS), raw CUDA C++ elementwise baseline,
-  reading Inductor's generated Triton for softmax
+- [x] **M2** — tiled matmul + autotune (% of cuBLAS), raw CUDA C++ elementwise baseline,
+  [reading Inductor's generated Triton](notes/e-inductor/README.md) for softmax,
+  [bring-up log](notes/bringup-log.md) of every failure and fix
 - [ ] **M3** — study notes A–D complete
 - [ ] **M4** — Dynamo/Inductor module, `torch.compile` steady-state baseline, perf plots
 

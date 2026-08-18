@@ -1,0 +1,357 @@
+[2026-08-18T06:52:14+00:00] PAUSE: stopping timers: nightly-report.timer guss-trader.timer
+[2026-08-18T06:52:31+00:00] PAUSE: stopping llama-server
+[2026-08-18T06:52:32+00:00] dropping page caches
+[2026-08-18T06:52:33+00:00] locking clocks
+NV Power Mode: MAXN_SUPER
+2
+               total        used        free      shared  buff/cache   available
+Mem:           7.4Gi       463Mi       6.8Gi        15Mi       168Mi       6.8Gi
+Swap:          3.7Gi       176Mi       3.5Gi
+[2026-08-18T06:52:33+00:00] RUN: bash -c TRITON_INTERPRET=0 .venv/bin/python -m pytest -q && .venv/bin/python -m bench.run --kernel matmul && ./out/cuda_elementwise | tee bench/results/orin/cuda_elementwise.csv
+...................FFFFFFFFF.....................                        [100%]
+=================================== FAILURES ===================================
+_________________ test_matches_fp32_reference[16-16-16-dtype0] _________________
+
+device = 'cuda', dtype = torch.float32, m = 16, n = 16, k = 16
+
+    @pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
+    @pytest.mark.parametrize(
+        ("m", "n", "k"),
+        [
+            (16, 16, 16),  # single tile, exact fit
+            (64, 64, 48),  # K-tail (48 = 3 x BLOCK_K in interpreter config)
+            (33, 65, 37),  # ragged everything: store mask + K mask + wrap trick
+            (128, 96, 128),
+        ],
+    )
+    def test_matches_fp32_reference(device, dtype, m, n, k):
+        torch.manual_seed(0)
+        a = torch.randn(m, k, device=device, dtype=dtype)
+        b = torch.randn(k, n, device=device, dtype=dtype)
+        rtol, atol = TOLS[dtype]
+>       torch.testing.assert_close(matmul(a, b).float(), _ref_fp32(a, b), rtol=rtol, atol=atol)
+
+tests/test_matmul.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = tensor([[-9.2466e-01, -4.2534e-01, -2.6438e+00,  1.4518e-01, -1.2087e-01,
+         -5.7973e-01, -6.2285e-01, -3.2839e-...-01,
+          1.3228e+00, -1.7094e+00, -1.1085e+00,  1.3417e+00,  3.3156e+00,
+         -8.4666e-01]], device='cuda:0')
+b = tensor([[ 1.8083e-01, -5.5226e-01,  9.2381e-01, -7.3497e-01,  1.3800e+00,
+          8.6763e-01,  1.2966e-01, -9.4064e-...-02,
+          2.0081e-01, -1.1407e+00, -9.5424e-01,  1.3749e-01, -1.7816e+00,
+          1.9628e-01]], device='cuda:0')
+
+    def _ref_fp32(a, b):
+>       return torch.matmul(a.float(), b.float())
+E       RuntimeError: CUDA error: CUBLAS_STATUS_ALLOC_FAILED when calling `cublasCreate(handle)`
+
+tests/test_matmul.py:24: RuntimeError
+_________________ test_matches_fp32_reference[16-16-16-dtype1] _________________
+
+device = 'cuda', dtype = torch.float16, m = 16, n = 16, k = 16
+
+    @pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
+    @pytest.mark.parametrize(
+        ("m", "n", "k"),
+        [
+            (16, 16, 16),  # single tile, exact fit
+            (64, 64, 48),  # K-tail (48 = 3 x BLOCK_K in interpreter config)
+            (33, 65, 37),  # ragged everything: store mask + K mask + wrap trick
+            (128, 96, 128),
+        ],
+    )
+    def test_matches_fp32_reference(device, dtype, m, n, k):
+        torch.manual_seed(0)
+        a = torch.randn(m, k, device=device, dtype=dtype)
+        b = torch.randn(k, n, device=device, dtype=dtype)
+        rtol, atol = TOLS[dtype]
+>       torch.testing.assert_close(matmul(a, b).float(), _ref_fp32(a, b), rtol=rtol, atol=atol)
+
+tests/test_matmul.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = tensor([[-9.2480e-01, -4.2529e-01, -2.6445e+00,  1.4514e-01, -1.2085e-01,
+         -5.7959e-01, -6.2305e-01, -3.2837e-...e+00, -1.7090e+00, -1.1084e+00,  1.3418e+00,  3.3164e+00,
+         -8.4668e-01]], device='cuda:0', dtype=torch.float16)
+b = tensor([[ 1.8079e-01, -5.5225e-01,  9.2383e-01, -7.3486e-01,  1.3799e+00,
+          8.6768e-01,  1.2964e-01, -9.4043e-...e-01, -1.1406e+00, -9.5410e-01,  1.3745e-01, -1.7812e+00,
+          1.9629e-01]], device='cuda:0', dtype=torch.float16)
+
+    def _ref_fp32(a, b):
+>       return torch.matmul(a.float(), b.float())
+E       RuntimeError: CUDA error: CUBLAS_STATUS_ALLOC_FAILED when calling `cublasCreate(handle)`
+
+tests/test_matmul.py:24: RuntimeError
+_________________ test_matches_fp32_reference[64-64-48-dtype0] _________________
+
+device = 'cuda', dtype = torch.float32, m = 64, n = 64, k = 48
+
+    @pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
+    @pytest.mark.parametrize(
+        ("m", "n", "k"),
+        [
+            (16, 16, 16),  # single tile, exact fit
+            (64, 64, 48),  # K-tail (48 = 3 x BLOCK_K in interpreter config)
+            (33, 65, 37),  # ragged everything: store mask + K mask + wrap trick
+            (128, 96, 128),
+        ],
+    )
+    def test_matches_fp32_reference(device, dtype, m, n, k):
+        torch.manual_seed(0)
+        a = torch.randn(m, k, device=device, dtype=dtype)
+        b = torch.randn(k, n, device=device, dtype=dtype)
+        rtol, atol = TOLS[dtype]
+>       torch.testing.assert_close(matmul(a, b).float(), _ref_fp32(a, b), rtol=rtol, atol=atol)
+
+tests/test_matmul.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = tensor([[-0.9247, -0.4253, -2.6438,  ...,  1.0252, -1.4622, -0.7554],
+        [-0.1836,  0.3824,  0.3918,  ...,  0.524...3698,  1.4095, -1.6029],
+        [-0.5520,  0.2232, -0.3202,  ..., -0.6593,  2.3178,  0.4821]],
+       device='cuda:0')
+b = tensor([[ 0.1808, -0.5523,  0.9238,  ...,  0.7132,  0.5067,  0.3737],
+        [ 2.0680, -1.3070, -0.2220,  ...,  0.136...0304,  0.3742, -0.5277],
+        [-0.9548,  0.5110, -0.0426,  ...,  1.2727, -0.8312, -0.0258]],
+       device='cuda:0')
+
+    def _ref_fp32(a, b):
+>       return torch.matmul(a.float(), b.float())
+E       RuntimeError: CUDA error: CUBLAS_STATUS_ALLOC_FAILED when calling `cublasCreate(handle)`
+
+tests/test_matmul.py:24: RuntimeError
+_________________ test_matches_fp32_reference[64-64-48-dtype1] _________________
+
+device = 'cuda', dtype = torch.float16, m = 64, n = 64, k = 48
+
+    @pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
+    @pytest.mark.parametrize(
+        ("m", "n", "k"),
+        [
+            (16, 16, 16),  # single tile, exact fit
+            (64, 64, 48),  # K-tail (48 = 3 x BLOCK_K in interpreter config)
+            (33, 65, 37),  # ragged everything: store mask + K mask + wrap trick
+            (128, 96, 128),
+        ],
+    )
+    def test_matches_fp32_reference(device, dtype, m, n, k):
+        torch.manual_seed(0)
+        a = torch.randn(m, k, device=device, dtype=dtype)
+        b = torch.randn(k, n, device=device, dtype=dtype)
+        rtol, atol = TOLS[dtype]
+>       torch.testing.assert_close(matmul(a, b).float(), _ref_fp32(a, b), rtol=rtol, atol=atol)
+
+tests/test_matmul.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = tensor([[-0.9248, -0.4253, -2.6445,  ...,  1.0254, -1.4619, -0.7554],
+        [-0.1836,  0.3823,  0.3918,  ...,  0.524...5],
+        [-0.5518,  0.2233, -0.3201,  ..., -0.6592,  2.3184,  0.4822]],
+       device='cuda:0', dtype=torch.float16)
+b = tensor([[ 0.1808, -0.5522,  0.9238,  ...,  0.7134,  0.5068,  0.3738],
+        [ 2.0684, -1.3066, -0.2220,  ...,  0.136...8],
+        [-0.9546,  0.5112, -0.0426,  ...,  1.2725, -0.8311, -0.0258]],
+       device='cuda:0', dtype=torch.float16)
+
+    def _ref_fp32(a, b):
+>       return torch.matmul(a.float(), b.float())
+E       RuntimeError: CUDA error: CUBLAS_STATUS_ALLOC_FAILED when calling `cublasCreate(handle)`
+
+tests/test_matmul.py:24: RuntimeError
+_________________ test_matches_fp32_reference[33-65-37-dtype0] _________________
+
+device = 'cuda', dtype = torch.float32, m = 33, n = 65, k = 37
+
+    @pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
+    @pytest.mark.parametrize(
+        ("m", "n", "k"),
+        [
+            (16, 16, 16),  # single tile, exact fit
+            (64, 64, 48),  # K-tail (48 = 3 x BLOCK_K in interpreter config)
+            (33, 65, 37),  # ragged everything: store mask + K mask + wrap trick
+            (128, 96, 128),
+        ],
+    )
+    def test_matches_fp32_reference(device, dtype, m, n, k):
+        torch.manual_seed(0)
+        a = torch.randn(m, k, device=device, dtype=dtype)
+        b = torch.randn(k, n, device=device, dtype=dtype)
+        rtol, atol = TOLS[dtype]
+>       torch.testing.assert_close(matmul(a, b).float(), _ref_fp32(a, b), rtol=rtol, atol=atol)
+
+tests/test_matmul.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = tensor([[-9.2466e-01, -4.2534e-01, -2.6438e+00,  ..., -9.0860e-01,
+         -8.0594e-01, -7.4067e-01],
+        [-5.038...       [ 3.4743e-01, -1.1658e+00, -2.2280e-01,  ..., -8.5420e-01,
+          1.9258e+00,  4.8241e-01]], device='cuda:0')
+b = tensor([[ 0.1808, -0.5523,  0.9238,  ...,  0.5067,  0.3737,  2.0680],
+        [-1.3070, -0.2220, -0.2223,  ..., -0.404...1016, -0.7967,  0.4012],
+        [-0.3638,  0.6206,  0.0558,  ..., -0.5980,  1.2488, -0.0402]],
+       device='cuda:0')
+
+    def _ref_fp32(a, b):
+>       return torch.matmul(a.float(), b.float())
+E       RuntimeError: CUDA error: CUBLAS_STATUS_ALLOC_FAILED when calling `cublasCreate(handle)`
+
+tests/test_matmul.py:24: RuntimeError
+_________________ test_matches_fp32_reference[33-65-37-dtype1] _________________
+
+device = 'cuda', dtype = torch.float16, m = 33, n = 65, k = 37
+
+    @pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
+    @pytest.mark.parametrize(
+        ("m", "n", "k"),
+        [
+            (16, 16, 16),  # single tile, exact fit
+            (64, 64, 48),  # K-tail (48 = 3 x BLOCK_K in interpreter config)
+            (33, 65, 37),  # ragged everything: store mask + K mask + wrap trick
+            (128, 96, 128),
+        ],
+    )
+    def test_matches_fp32_reference(device, dtype, m, n, k):
+        torch.manual_seed(0)
+        a = torch.randn(m, k, device=device, dtype=dtype)
+        b = torch.randn(k, n, device=device, dtype=dtype)
+        rtol, atol = TOLS[dtype]
+>       torch.testing.assert_close(matmul(a, b).float(), _ref_fp32(a, b), rtol=rtol, atol=atol)
+
+tests/test_matmul.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = tensor([[-9.2480e-01, -4.2529e-01, -2.6445e+00,  ..., -9.0869e-01,
+         -8.0615e-01, -7.4072e-01],
+        [-5.038...-1.1660e+00, -2.2278e-01,  ..., -8.5400e-01,
+          1.9258e+00,  4.8242e-01]], device='cuda:0', dtype=torch.float16)
+b = tensor([[ 0.1808, -0.5522,  0.9238,  ...,  0.5068,  0.3738,  2.0684],
+        [-1.3066, -0.2220, -0.2223,  ..., -0.404...1],
+        [-0.3638,  0.6206,  0.0558,  ..., -0.5981,  1.2490, -0.0402]],
+       device='cuda:0', dtype=torch.float16)
+
+    def _ref_fp32(a, b):
+>       return torch.matmul(a.float(), b.float())
+E       RuntimeError: CUDA error: CUBLAS_STATUS_ALLOC_FAILED when calling `cublasCreate(handle)`
+
+tests/test_matmul.py:24: RuntimeError
+________________ test_matches_fp32_reference[128-96-128-dtype0] ________________
+
+device = 'cuda', dtype = torch.float32, m = 128, n = 96, k = 128
+
+    @pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
+    @pytest.mark.parametrize(
+        ("m", "n", "k"),
+        [
+            (16, 16, 16),  # single tile, exact fit
+            (64, 64, 48),  # K-tail (48 = 3 x BLOCK_K in interpreter config)
+            (33, 65, 37),  # ragged everything: store mask + K mask + wrap trick
+            (128, 96, 128),
+        ],
+    )
+    def test_matches_fp32_reference(device, dtype, m, n, k):
+        torch.manual_seed(0)
+        a = torch.randn(m, k, device=device, dtype=dtype)
+        b = torch.randn(k, n, device=device, dtype=dtype)
+        rtol, atol = TOLS[dtype]
+>       torch.testing.assert_close(matmul(a, b).float(), _ref_fp32(a, b), rtol=rtol, atol=atol)
+
+tests/test_matmul.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = tensor([[-0.9247, -0.4253, -2.6438,  ..., -0.2128, -0.3315, -0.2023],
+        [-1.1451, -0.5715, -0.6510,  ...,  1.341...4152,  1.7318, -0.8065],
+        [-0.2959, -0.3252,  0.0533,  ...,  0.2601, -1.5977,  0.6328]],
+       device='cuda:0')
+b = tensor([[ 0.1808, -0.5523,  0.9238,  ..., -0.0245,  1.9654, -0.7130],
+        [-1.0530,  0.3793, -0.6242,  ..., -0.093...3028, -0.0255, -0.0292],
+        [-0.8673,  0.3369,  0.9775,  ...,  1.1814,  1.3092,  0.4606]],
+       device='cuda:0')
+
+    def _ref_fp32(a, b):
+>       return torch.matmul(a.float(), b.float())
+E       RuntimeError: CUDA error: CUBLAS_STATUS_ALLOC_FAILED when calling `cublasCreate(handle)`
+
+tests/test_matmul.py:24: RuntimeError
+________________ test_matches_fp32_reference[128-96-128-dtype1] ________________
+
+device = 'cuda', dtype = torch.float16, m = 128, n = 96, k = 128
+
+    @pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
+    @pytest.mark.parametrize(
+        ("m", "n", "k"),
+        [
+            (16, 16, 16),  # single tile, exact fit
+            (64, 64, 48),  # K-tail (48 = 3 x BLOCK_K in interpreter config)
+            (33, 65, 37),  # ragged everything: store mask + K mask + wrap trick
+            (128, 96, 128),
+        ],
+    )
+    def test_matches_fp32_reference(device, dtype, m, n, k):
+        torch.manual_seed(0)
+        a = torch.randn(m, k, device=device, dtype=dtype)
+        b = torch.randn(k, n, device=device, dtype=dtype)
+        rtol, atol = TOLS[dtype]
+>       torch.testing.assert_close(matmul(a, b).float(), _ref_fp32(a, b), rtol=rtol, atol=atol)
+
+tests/test_matmul.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = tensor([[-0.9248, -0.4253, -2.6445,  ..., -0.2128, -0.3315, -0.2023],
+        [-1.1455, -0.5713, -0.6509,  ...,  1.341...6],
+        [-0.2959, -0.3252,  0.0533,  ...,  0.2600, -1.5977,  0.6328]],
+       device='cuda:0', dtype=torch.float16)
+b = tensor([[ 0.1808, -0.5522,  0.9238,  ..., -0.0245,  1.9658, -0.7129],
+        [-1.0527,  0.3792, -0.6240,  ..., -0.093...2],
+        [-0.8672,  0.3369,  0.9775,  ...,  1.1816,  1.3096,  0.4604]],
+       device='cuda:0', dtype=torch.float16)
+
+    def _ref_fp32(a, b):
+>       return torch.matmul(a.float(), b.float())
+E       RuntimeError: CUDA error: CUBLAS_STATUS_ALLOC_FAILED when calling `cublasCreate(handle)`
+
+tests/test_matmul.py:24: RuntimeError
+__________________________ test_non_contiguous_inputs __________________________
+
+device = 'cuda'
+
+    def test_non_contiguous_inputs(device):
+        torch.manual_seed(1)
+        a = torch.randn(48, 32, device=device).t()  # 32x48 view, non-contiguous
+        b = torch.randn(48, 24, device=device)
+        out = matmul(a, b)
+        assert out.shape == (32, 24)
+>       torch.testing.assert_close(out, _ref_fp32(a, b), rtol=1e-2, atol=1e-2)
+
+tests/test_matmul.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = tensor([[-0.2963,  0.5735, -1.4363,  ...,  0.9433, -0.4734, -0.3221],
+        [ 2.6764,  0.0278, -1.5196,  ...,  1.007...4150,  1.4540,  2.1186],
+        [ 1.3425, -1.3682, -0.7886,  ..., -0.1211, -1.6034,  1.2463]],
+       device='cuda:0')
+b = tensor([[-0.6340, -0.6431, -0.6420,  ..., -0.3119,  0.0512, -0.0739],
+        [ 1.1165, -0.5660,  0.1715,  ..., -0.533...1925,  1.0105,  0.6485],
+        [ 0.7087,  1.8885,  1.4412,  ..., -0.6249, -0.3585,  0.5381]],
+       device='cuda:0')
+
+    def _ref_fp32(a, b):
+>       return torch.matmul(a.float(), b.float())
+E       RuntimeError: CUDA error: CUBLAS_STATUS_ALLOC_FAILED when calling `cublasCreate(handle)`
+
+tests/test_matmul.py:24: RuntimeError
+=========================== short test summary info ============================
+FAILED tests/test_matmul.py::test_matches_fp32_reference[16-16-16-dtype0] - R...
+FAILED tests/test_matmul.py::test_matches_fp32_reference[16-16-16-dtype1] - R...
+FAILED tests/test_matmul.py::test_matches_fp32_reference[64-64-48-dtype0] - R...
+FAILED tests/test_matmul.py::test_matches_fp32_reference[64-64-48-dtype1] - R...
+FAILED tests/test_matmul.py::test_matches_fp32_reference[33-65-37-dtype0] - R...
+FAILED tests/test_matmul.py::test_matches_fp32_reference[33-65-37-dtype1] - R...
+FAILED tests/test_matmul.py::test_matches_fp32_reference[128-96-128-dtype0]
+FAILED tests/test_matmul.py::test_matches_fp32_reference[128-96-128-dtype1]
+FAILED tests/test_matmul.py::test_non_contiguous_inputs - RuntimeError: CUDA ...
+9 failed, 40 passed in 43.72s
+[2026-08-18T06:53:19+00:00] RESTORE: starting llama-server (drops caches first, as its unit does at boot)
+[2026-08-18T06:53:20+00:00] RESTORE: resuming timers: nightly-report.timer guss-trader.timer
+[2026-08-18T06:53:21+00:00] session log: bench/results/session-20260818-065214.log

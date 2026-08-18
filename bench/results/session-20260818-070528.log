@@ -1,0 +1,38 @@
+[2026-08-18T07:05:28+00:00] PAUSE: stopping timers: nightly-report.timer guss-trader.timer
+[2026-08-18T07:05:35+00:00] PAUSE: stopping llama-server
+[2026-08-18T07:05:36+00:00] dropping page caches
+[2026-08-18T07:05:36+00:00] locking clocks
+NV Power Mode: MAXN_SUPER
+2
+               total        used        free      shared  buff/cache   available
+Mem:           7.4Gi       470Mi       6.8Gi        23Mi       175Mi       6.8Gi
+Swap:          3.7Gi       176Mi       3.5Gi
+[2026-08-18T07:05:36+00:00] RUN: bash -c .venv/bin/python -m bench.run --kernel matmul --dtype fp32 && ./out/cuda_elementwise | tee bench/results/orin/cuda_elementwise.csv
+matmul      fp32 cublas           256x256x256     0.0281 ms     28.0 GB/s     1.19 TFLOP/s
+matmul      fp32 triton           256x256x256     0.0262 ms     30.0 GB/s     1.28 TFLOP/s
+matmul      fp32 cublas           512x512x512     0.0739 ms     42.6 GB/s     3.63 TFLOP/s
+matmul      fp32 triton           512x512x512     0.0747 ms     42.1 GB/s     3.59 TFLOP/s
+matmul      fp32 cublas        1024x1024x1024     0.4729 ms     26.6 GB/s     4.54 TFLOP/s
+matmul      fp32 triton        1024x1024x1024     0.4745 ms     26.5 GB/s     4.53 TFLOP/s
+matmul      fp32 cublas        2048x2048x2048     4.0175 ms     12.5 GB/s     4.28 TFLOP/s
+matmul      fp32 triton        2048x2048x2048     4.3139 ms     11.7 GB/s     3.98 TFLOP/s
+matmul      fp32 cublas        4096x4096x4096    27.9626 ms      7.2 GB/s     4.92 TFLOP/s
+matmul      fp32 triton        4096x4096x4096    37.6235 ms      5.3 GB/s     3.65 TFLOP/s
+wrote bench/results/orin/matmul_fp32.csv
+impl,shape,numel,ms_median,gbps
+cuda_scalar,65536,65536,0.01539,68.12
+cuda_float4,65536,65536,0.01162,90.27
+cuda_scalar,262144,262144,0.05350,78.39
+cuda_float4,262144,262144,0.05197,80.71
+cuda_scalar,1048576,1048576,0.18797,89.26
+cuda_float4,1048576,1048576,0.18022,93.09
+cuda_scalar,4194304,4194304,0.71190,94.27
+cuda_float4,4194304,4194304,0.69357,96.76
+cuda_scalar,16777216,16777216,2.83478,94.69
+cuda_float4,16777216,16777216,2.74656,97.74
+cuda_scalar,67108864,67108864,12.49910,85.91
+cuda_float4,67108864,67108864,10.98650,97.73
+[2026-08-18T07:06:29+00:00] sweep finished
+[2026-08-18T07:06:29+00:00] RESTORE: starting llama-server (drops caches first, as its unit does at boot)
+[2026-08-18T07:06:30+00:00] RESTORE: resuming timers: nightly-report.timer guss-trader.timer
+[2026-08-18T07:06:31+00:00] session log: bench/results/session-20260818-070528.log
