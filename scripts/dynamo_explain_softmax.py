@@ -32,7 +32,7 @@ def report(name, fn, x):
         print(f"break[{i}]: {reason.reason}")
     for i, graph in enumerate(ex.graphs):
         print(f"\n--- captured FX graph {i} ---")
-        graph.graph.print_tabular()
+        print(graph.graph)  # textual FX form; print_tabular needs an extra dep
     print()
 
 
