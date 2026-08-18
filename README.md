@@ -14,7 +14,8 @@ accounting the whole game, which is the right instinct to train anyway.
 |---|---|---|
 | `kernels/elementwise.py` — fused mul-add-relu | masking, coalescing, bandwidth accounting | GB/s vs ~102 GB/s device peak |
 | `kernels/softmax.py` — fused row softmax + online variant | reductions, numerical stability (max-subtract), warp tuning, the online-softmax recurrence Flash-Attention builds on | GB/s vs eager `torch.softmax` |
-| `kernels/matmul.py` — tiled matmul *(planned, M2)* | block tiling, fp32 accumulators, `@triton.autotune`, grouped ordering for L2 reuse | TFLOP/s and **% of cuBLAS** |
+| `kernels/matmul.py` — tiled matmul | block tiling, fp32 accumulators, `@triton.autotune`, grouped ordering for L2 reuse | TFLOP/s and **% of cuBLAS** |
+| `cuda/elementwise.cu` — raw CUDA C++ baseline | the same fused elementwise written by hand (scalar + `float4` variants) — what Triton's codegen is measured against | GB/s vs the Triton version |
 
 The framing throughout is deliberately honest. Fused elementwise beats eager because eager
 launches three kernels, not because the arithmetic is clever — a lone Triton `add` merely

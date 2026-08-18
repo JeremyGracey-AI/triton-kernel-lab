@@ -7,6 +7,7 @@ from bench.meta import (
     device_slug,
     effective_gbps,
     parse_elementwise_sizes,
+    parse_matmul_sizes,
     parse_softmax_sizes,
 )
 
@@ -25,11 +26,21 @@ def test_parse_softmax_sizes():
     assert parse_softmax_sizes("4096x1024,1024x16384") == [(4096, 1024), (1024, 16384)]
 
 
+def test_parse_matmul_sizes():
+    assert parse_matmul_sizes(None) is None
+    assert parse_matmul_sizes("512x512x512,1024x768x512") == [
+        (512, 512, 512),
+        (1024, 768, 512),
+    ]
+
+
 def test_parse_sizes_rejects_garbage():
     with pytest.raises(ValueError):
         parse_elementwise_sizes("4096x1024")
     with pytest.raises(ValueError):
         parse_softmax_sizes("4096")
+    with pytest.raises(ValueError):
+        parse_matmul_sizes("4096x1024")
 
 
 def test_device_slug():

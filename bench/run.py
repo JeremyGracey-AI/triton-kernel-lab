@@ -32,13 +32,16 @@ import triton.testing
 
 from bench.meta import (
     ELEMENTWISE_SIZES,
+    MATMUL_SIZES,
     SOFTMAX_SIZES,
     device_slug,
     effective_gbps,
     parse_elementwise_sizes,
+    parse_matmul_sizes,
     parse_softmax_sizes,
 )
 from kernels.elementwise import eager_mul_add_relu, fused_mul_add_relu
+from kernels.matmul import matmul
 from kernels.softmax import softmax, softmax_online
 
 DTYPES = {"fp16": torch.float16, "fp32": torch.float32}
@@ -130,9 +133,50 @@ def rows_softmax(dtype: torch.dtype, sizes: list[tuple[int, int]], cooldown: flo
         time.sleep(cooldown)
 
 
+def rows_matmul(dtype: torch.dtype, sizes: list[tuple[int, int, int]], cooldown: float):
+    # My kernel's tl.dot uses TF32 for fp32 on Ampere; give cuBLAS the same
+    # freedom so "% of cuBLAS" compares like for like (stated in the README).
+    torch.backends.cuda.matmul.allow_tf32 = True
+    itemsize = torch.tensor([], dtype=dtype).element_size()
+    for m, n, k in sizes:
+        a = torch.randn(m, k, device="cuda", dtype=dtype)
+        b = torch.randn(k, n, device="cuda", dtype=dtype)
+        # correctness gate — also triggers autotuning before any timing
+        torch.testing.assert_close(
+            matmul(a, b).float(), torch.matmul(a.float(), b.float()), rtol=1e-2, atol=1e-2
+        )
+        flops = 2.0 * m * n * k
+        moved_bytes = (m * k + k * n + m * n) * itemsize
+        results = {}
+        for impl, fn in (
+            ("cublas", lambda a=a, b=b: torch.matmul(a, b)),
+            ("triton", lambda a=a, b=b: matmul(a, b)),
+        ):
+            med, q20, q80 = bench_ms(fn)
+            results[impl] = med
+            yield {
+                "impl": impl,
+                "shape": f"{m}x{n}x{k}",
+                "numel": m * n,
+                "ms_median": round(med, 5),
+                "ms_q20": round(q20, 5),
+                "ms_q80": round(q80, 5),
+                "gbps": round(effective_gbps(moved_bytes, med), 2),
+                "tflops": round(flops / (med * 1e-3) / 1e12, 3),
+                "pct_cublas": round(100.0 * results["cublas"] / med, 1)
+                if impl == "triton"
+                else 100.0,
+            }
+        del a, b
+        torch.cuda.empty_cache()
+        time.sleep(cooldown)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--kernel", choices=["elementwise", "softmax", "all"], default="all")
+    ap.add_argument(
+        "--kernel", choices=["elementwise", "softmax", "matmul", "all"], default="all"
+    )
     ap.add_argument("--dtype", choices=[*DTYPES, "all"], default="all")
     ap.add_argument("--sizes", help="elementwise: N,N,...  softmax: RxC,RxC,...")
     ap.add_argument("--cooldown", type=float, default=2.0, help="seconds between sweep points")
@@ -151,7 +195,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "env.json").write_text(json.dumps(meta, indent=2) + "\n")
 
-    kernels = ["elementwise", "softmax"] if args.kernel == "all" else [args.kernel]
+    kernels = ["elementwise", "softmax", "matmul"] if args.kernel == "all" else [args.kernel]
     dtypes = list(DTYPES) if args.dtype == "all" else [args.dtype]
 
     for kernel in kernels:
@@ -160,19 +204,22 @@ def main() -> None:
             if kernel == "elementwise":
                 ew_sizes = parse_elementwise_sizes(args.sizes) or ELEMENTWISE_SIZES
                 rows = rows_elementwise(dtype, ew_sizes, args.cooldown)
-            else:
+            elif kernel == "softmax":
                 sm_sizes = parse_softmax_sizes(args.sizes) or SOFTMAX_SIZES
                 rows = rows_softmax(dtype, sm_sizes, args.cooldown)
+            else:
+                mm_sizes = parse_matmul_sizes(args.sizes) or MATMUL_SIZES
+                rows = rows_matmul(dtype, mm_sizes, args.cooldown)
 
             path = out_dir / f"{kernel}_{dtype_name}.csv"
             fields = [
                 "kernel", "dtype", "impl", "shape", "numel",
-                "ms_median", "ms_q20", "ms_q80", "gbps",
+                "ms_median", "ms_q20", "ms_q80", "gbps", "tflops", "pct_cublas",
                 "torch", "triton", "cuda", "device", "capability", "power_mode",
                 "timestamp_utc",
             ]
             with path.open("w", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=fields)
+                writer = csv.DictWriter(f, fieldnames=fields, restval="")
                 writer.writeheader()
                 for row in rows:
                     row.update(
@@ -184,9 +231,10 @@ def main() -> None:
                         )},
                     )
                     writer.writerow(row)
+                    extra = f"  {row['tflops']:>7.2f} TFLOP/s" if "tflops" in row else ""
                     print(
-                        f"{kernel:<11} {dtype_name} {row['impl']:<13} {row['shape']:>12}"
-                        f"  {row['ms_median']:>9.4f} ms  {row['gbps']:>7.1f} GB/s"
+                        f"{kernel:<11} {dtype_name} {row['impl']:<13} {row['shape']:>14}"
+                        f"  {row['ms_median']:>9.4f} ms  {row['gbps']:>7.1f} GB/s{extra}"
                     )
             print(f"wrote {path}")
 

@@ -18,7 +18,14 @@ smoke:
 bench:
 	scripts/bench_guss.sh python -m bench.run --kernel all
 
+# Raw CUDA C++ baseline (Jetson/CUDA box only; self-checking, prints CSV)
+CUDA_ARCH ?= sm_87
+cuda-bench:
+	mkdir -p out
+	nvcc -O3 -arch=$(CUDA_ARCH) -o out/cuda_elementwise cuda/elementwise.cu
+	./out/cuda_elementwise
+
 plot:
 	python -m bench.plot --results $(RESULTS)
 
-.PHONY: test test-gpu lint smoke bench plot
+.PHONY: test test-gpu lint smoke bench cuda-bench plot
