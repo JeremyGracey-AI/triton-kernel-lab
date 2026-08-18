@@ -133,6 +133,24 @@ def rows_softmax(dtype: torch.dtype, sizes: list[tuple[int, int]], cooldown: flo
         time.sleep(cooldown)
 
 
+def _matmul_error_gate(a: torch.Tensor, b: torch.Tensor) -> None:
+    """Reduced-precision matmul (TF32, fp16) accumulates error that grows with
+    K and differs by tiling order, so a fixed tolerance against an IEEE fp32
+    reference is the wrong gate at large K — it rejected a correct kernel at
+    256^3. Instead: measure BOTH implementations against an fp64 reference and
+    require my worst-case error within a small factor of cuBLAS's own."""
+    ref64 = torch.matmul(a.double(), b.double())
+    scale = ref64.abs().max().item()
+    err_mine = (matmul(a, b).double() - ref64).abs().max().item()
+    err_cublas = (torch.matmul(a, b).double() - ref64).abs().max().item()
+    limit = 3.0 * err_cublas + 1e-4 * scale
+    if err_mine > limit:
+        raise AssertionError(
+            f"matmul gate: max abs err {err_mine:.3e} vs cuBLAS {err_cublas:.3e} "
+            f"(limit {limit:.3e}, ref scale {scale:.3e})"
+        )
+
+
 def rows_matmul(dtype: torch.dtype, sizes: list[tuple[int, int, int]], cooldown: float):
     # My kernel's tl.dot uses TF32 for fp32 on Ampere; give cuBLAS the same
     # freedom so "% of cuBLAS" compares like for like (stated in the README).
@@ -142,9 +160,7 @@ def rows_matmul(dtype: torch.dtype, sizes: list[tuple[int, int, int]], cooldown:
         a = torch.randn(m, k, device="cuda", dtype=dtype)
         b = torch.randn(k, n, device="cuda", dtype=dtype)
         # correctness gate — also triggers autotuning before any timing
-        torch.testing.assert_close(
-            matmul(a, b).float(), torch.matmul(a.float(), b.float()), rtol=1e-2, atol=1e-2
-        )
+        _matmul_error_gate(a, b)
         flops = 2.0 * m * n * k
         moved_bytes = (m * k + k * n + m * n) * itemsize
         results = {}
