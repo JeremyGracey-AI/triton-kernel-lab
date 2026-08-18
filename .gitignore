@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+*.egg-info/
+dist/
+# benchmark results ARE committed (CSVs, PNGs, env.json, session logs)

@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install (CPU torch + triton — interpreter-mode testing only)
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install triton numpy pytest ruff pyright
+      - name: Lint
+        run: ruff check .
+      - name: Typecheck
+        run: pyright
+      - name: Tests (Triton interpreter, CPU)
+        run: TRITON_INTERPRET=1 pytest -q

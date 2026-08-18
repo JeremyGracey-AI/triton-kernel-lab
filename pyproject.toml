@@ -1,0 +1,36 @@
+[project]
+name = "triton-kernel-lab"
+version = "0.1.0"
+description = "Hand-written Triton kernels with honest benchmarks, plus a study track through the compiler stack underneath"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+# torch and triton are intentionally NOT pinned here: each platform installs its
+# own build (Jetson: NVIDIA's JetPack index; CI: CPU wheels). The versions that
+# produced any benchmark number are recorded in that run's CSV rows and env.json.
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6", "pyright>=1.1.380"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# importorskip / env setup must run before imports in these files
+"tests/*" = ["E402"]
+"conftest.py" = ["E402"]
+
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
+# torch/triton are platform-installed; on a dev box without them this keeps
+# pyright usable. In CI they are installed, so imports actually resolve there.
+reportMissingImports = "warning"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
