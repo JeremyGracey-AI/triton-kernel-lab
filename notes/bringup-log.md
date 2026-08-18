@@ -71,6 +71,26 @@ with TF32 enabled too, so the bar is like-for-like. **Lesson:** under reduced pr
 "close to a higher-precision reference" is the wrong question at scale; "no worse than the
 vendor library under the same precision policy" is the defensible one.
 
+## 6. An external cold read caught a contradiction I shipped
+
+**Symptom:** after M0–M4 were complete and green, I pointed a second, unrelated AI coding
+tool at the repo with zero context and asked for a technical overview. It reconstructed the
+architecture correctly — and inferred "dependency management appears to use uv (a uv.lock
+file is present)." The README says the opposite: dependencies are deliberately unpinned and
+per-platform.
+
+**Root cause:** a local tool run had materialized `uv.lock` as a side effect, and a broad
+`git add -A` swept it into the very first commit. It pinned only dev tools, so nothing
+broke — it just quietly told every fresh reader the opposite of the repo's stated
+philosophy, and no test can catch a *message* contradiction.
+
+**Fix:** untracked, gitignored with the reasoning in the comment (`ca1045d`). **Lesson:**
+check your work with a reviewer that didn't write it. Every prior failure in this log was
+caught by a gate I built; this one was invisible to all of them because the artifact was
+consistent with itself — only an outside reading against the documentation exposed it. An
+independent cold read of your own repo is cheap, and it reviews the thing tests can't: what
+the repo *says*.
+
 ## Ops footnote
 
 The bench session wrapper (`scripts/bench_guss.sh`) stops resident services and self-healing
