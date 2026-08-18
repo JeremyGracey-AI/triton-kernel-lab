@@ -8,3 +8,6 @@ __pycache__/
 dist/
 out/
 # benchmark results ARE committed (CSVs, PNGs, env.json, session logs)
+# no lockfile on purpose: torch/triton are per-platform installs and the README
+# says so — a committed lock (even dev-only) sends the opposite signal
+uv.lock
