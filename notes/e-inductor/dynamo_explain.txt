@@ -1,0 +1,36 @@
+======================================================================
+clean softmax (expect 1 graph, 0 breaks)
+======================================================================
+graphs: 1  graph breaks: 0  ops: 1
+
+--- captured FX graph 0 ---
+graph():
+    %l_x_ : torch.Tensor [num_users=1] = placeholder[target=L_x_]
+    %softmax : [num_users=1] = call_function[target=torch.softmax](args = (%l_x_,), kwargs = {dim: -1})
+    return (softmax,)
+
+======================================================================
+softmax with .item() mid-function (expect a graph break)
+======================================================================
+graphs: 2  graph breaks: 1  ops: 2
+break[0]: Unsupported Tensor.item() call with capture_scalar_outputs=False
+  Explanation: Dynamo does not support tracing `Tensor.item()` with config.capture_scalar_outputs=False.
+  Hint: Set `torch._dynamo.config.capture_scalar_outputs = True` or `export TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1` to include these operations in the captured graph.
+
+  Developer debug context: call_method TensorVariable() item () {}
+
+ For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0124.html
+
+--- captured FX graph 0 ---
+graph():
+    %l_x_ : torch.Tensor [num_users=1] = placeholder[target=L_x_]
+    %y : [num_users=2] = call_function[target=torch.softmax](args = (%l_x_,), kwargs = {dim: -1})
+    %max_1 : [num_users=1] = call_method[target=max](args = (%y,), kwargs = {})
+    return (max_1, y)
+
+--- captured FX graph 1 ---
+graph():
+    %l_y_ : torch.Tensor [num_users=1] = placeholder[target=L_y_]
+    %mul : [num_users=1] = call_function[target=operator.mul](args = (%l_y_, 1.0), kwargs = {})
+    return (mul,)
+

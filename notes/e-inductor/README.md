@@ -64,5 +64,53 @@ kind of thing you only see by reading the code the compiler wrote.
 `torch.compile`'s softmax and mine agree on every load-bearing decision — one fused pass,
 fp32 accumulation, max-subtract stability, whole-row-resident reduction — because those are
 forced by the problem. Where we differ (row batching, shape specialization, recompute vs
-reuse) is the actual design space, and it's legible only at this layer. The steady-state
-`torch.compile` timing baseline lands with module E proper (M4).
+reuse) is the actual design space, and it's legible only at this layer.
+
+---
+
+# Module E proper — Dynamo mechanics, with committed evidence
+
+Artifact: [`dynamo_explain.txt`](dynamo_explain.txt), the output of
+`torch._dynamo.explain` on this machine for a clean softmax and a deliberately hostile one
+(`scripts/dynamo_explain_softmax.py`).
+
+**Bytecode capture.** Dynamo hooks CPython frame evaluation (PEP 523) and symbolically
+executes the function's *bytecode* — not its source — recording tensor operations into an
+FX graph. The clean case captures exactly what you'd hope: one graph, zero breaks, one op:
+
+```
+%softmax : call_function[target=torch.softmax](args = (%l_x_,), kwargs = {dim: -1})
+```
+
+**Guards.** A captured graph is only sound for inputs "like" the ones traced. The raw
+Inductor dump above shows the enforcement: `assert_size_stride(arg0_1, (64, 1024), (1024, 1))`
+— shape, stride, dtype, and device guards checked on every call; a miss triggers
+recompilation. This is why the bench harness compiles per shape and times only steady
+state: guards make the compiled artifact fast and *narrow*.
+
+**Graph breaks.** The hostile variant inserts `y.max().item()` mid-function — a
+GPU→CPU sync producing a Python scalar that control flow then consumes. Dynamo can't trace
+through it, and the committed output shows the machinery exactly:
+
+- 2 graphs, 1 break, with Dynamo's stated reason (`Tensor.item()` with
+  `capture_scalar_outputs=False`) *and* its escape hatch
+  (`torch._dynamo.config.capture_scalar_outputs = True`).
+- Graph 0 ends by returning **both** `max_1` and `y` — extra outputs manufactured so the
+  interpreter can execute the untraceable Python in between.
+- Graph 1 is a *resume function*: it restarts with `y` as a fresh placeholder and carries
+  on with the multiply.
+
+A break isn't an error — it's a seam where compiled fragments hand control back to Python.
+The performance story of `torch.compile` in real models is substantially the story of how
+few of these seams you have.
+
+**AOTAutograd.** Sits between Dynamo and Inductor: it traces the captured graph into ATen
+ops and, for training, builds the joint forward/backward graph. Everything in this module
+is inference-mode, so what Inductor received (the ATen graph at the top of the raw dump,
+with `prims.prepare_softmax_online` already decomposed) is AOTAutograd's forward-only
+output.
+
+**Steady-state baseline.** `bench/run.py` now benchmarks `torch_compile` as a fourth
+softmax implementation — compiled once per shape, timed only after warmup, correctness-
+gated like everything else. Numbers live in the root README's softmax table and
+`bench/results/orin/softmax_*.csv`.
