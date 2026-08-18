@@ -163,7 +163,9 @@ Public notes with one artifact each — see [`notes/README.md`](notes/README.md)
 - [x] **M2** — tiled matmul + autotune (% of cuBLAS), raw CUDA C++ elementwise baseline,
   [reading Inductor's generated Triton](notes/e-inductor/README.md) for softmax,
   [bring-up log](notes/bringup-log.md) of every failure and fix
-- [ ] **M3** — study notes A–D complete
+- [x] **M3** — study notes A–D complete ([A](notes/a-gpu-execution/README.md) ·
+  [B](notes/b-triton-model/README.md) · [C](notes/c-llvm/README.md) ·
+  [D](notes/d-lowering/README.md))
 - [ ] **M4** — Dynamo/Inductor module, `torch.compile` steady-state baseline, perf plots
 
 ## Toolchain notes
