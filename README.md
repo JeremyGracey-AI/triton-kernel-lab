@@ -85,3 +85,10 @@ torch and triton are deliberately unpinned in `pyproject.toml`: each platform in
 build (Jetson: NVIDIA's JetPack wheel index; CI: CPU wheels) and the versions that produced any
 benchmark are recorded with it. CI runs lint (ruff), typecheck (pyright), and the interpreter-mode
 suite on every push.
+
+Jetson bring-up gotchas (JetPack 6 / L4T r36, learned the hard way): pin torch **by index, not
+just version** — a bare resolve happily grabs PyPI's SBSA cu13 aarch64 wheel, which the Jetson
+driver can't load (`--index-url https://pypi.jetson-ai-lab.io/jp6/cu126 --no-deps torch==2.11.0`,
+then deps from PyPI). And that wheel links `libcudss`, which JetPack doesn't ship —
+`pip install nvidia-cudss-cu12`, then `source scripts/jetson_env.sh` puts the pip-installed
+NVIDIA libs on `LD_LIBRARY_PATH` (the bench session script sources it automatically).

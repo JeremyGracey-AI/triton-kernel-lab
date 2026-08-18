@@ -16,6 +16,9 @@
 #   scripts/bench_guss.sh python -m bench.run --kernel all
 set -euo pipefail
 
+# Jetson wheels may need companion NVIDIA libs from pip on LD_LIBRARY_PATH.
+[ -f scripts/jetson_env.sh ] && . scripts/jetson_env.sh
+
 TIMERS=(nightly-report.timer guss-trader.timer)
 SERVER=llama-server
 LOG="bench/results/session-$(date +%Y%m%d-%H%M%S).log"
