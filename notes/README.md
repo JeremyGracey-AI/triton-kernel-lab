@@ -9,4 +9,4 @@ no artifact, no module. Modules land as they're finished (see the roadmap in the
 | B | Triton's model: blocked programs vs CUDA threads (MAPL '19 paper) | annotated comparison against a raw CUDA version of the same kernel |
 | C | LLVM foundations: SSA, IR structure, pass pipelines | annotated LLVM-IR + PTX from the elementwise kernel |
 | D | Triton's lowering pipeline | **[landed](d-lowering/README.md)**: softmax traced and annotated through TTIR → TTGIR → LLVM IR → PTX, from a real Orin compile |
-| E | TorchDynamo/Inductor: bytecode capture, guards, graph breaks, FX, AOTAutograd | what `torch.compile` does to this repo's softmax + steady-state compile baseline |
+| E | TorchDynamo/Inductor: bytecode capture, guards, graph breaks, FX, AOTAutograd | **[seeded](e-inductor/README.md)**: Inductor's generated softmax read against mine, from a real Orin compile; steady-state compile baseline lands with M4 |
